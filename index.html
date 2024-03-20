@@ -1,40 +1,276 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
 
-		<title>reveal.js</title>
+    <title>reveal.js</title>
 
-		<link rel="stylesheet" href="dist/reset.css">
-		<link rel="stylesheet" href="dist/reveal.css">
-		<link rel="stylesheet" href="dist/theme/black.css">
+    <link rel="stylesheet" href="dist/reset.css" />
+    <link rel="stylesheet" href="dist/reveal.css" />
+    <link rel="stylesheet" href="dist/theme/black.css" />
 
-		<!-- Theme used for syntax highlighted code -->
-		<link rel="stylesheet" href="plugin/highlight/monokai.css">
-	</head>
-	<body>
-		<div class="reveal">
-			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
-			</div>
-		</div>
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="plugin/highlight/monokai.css" />
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>micobo Security Token</section>
+        <section>
+          <h2>Outline</h2>
+          <ul>
+            <li class="fragment">Meta Transactions</li>
+            <li class="fragment">Multicall</li>
+            <li class="fragment">On-Chain Metadata</li>
+            <li class="fragment">More...</li>
+          </ul>
+        </section>
+        <section data-auto-animate>
+          <h2 data-id="code-title">Meta Transactions</h2>
+          <pre
+            data-id="code-animation"
+          ><code class="hljs solidity" data-trim data-line-numbers="|4-6"><script type="text/template">
 
-		<script src="dist/reveal.js"></script>
-		<script src="plugin/notes/notes.js"></script>
-		<script src="plugin/markdown/markdown.js"></script>
-		<script src="plugin/highlight/highlight.js"></script>
-		<script>
-			// More info about initialization & config:
-			// - https://revealjs.com/initialization/
-			// - https://revealjs.com/config/
-			Reveal.initialize({
-				hash: true,
+						function executeMetaTransaction(
+							address userAddress,
+							bytes memory functionSignature,
+							bytes32 sigR,
+							bytes32 sigS,
+							uint8 sigV
+							) public payable returns (bytes memory) {
+								...
+							}
+						</script>
+					</code></pre>
+        </section>
+        <section>
+          <h2>Token deployment</h2>
+          <ul>
+            <li class="fragment">Contract deployment</li>
+            <li class="fragment">Factory pattern</li>
+            <li class="fragment">Factory + Multicall (NEW!)</li>
+          </ul>
+        </section>
+        <section data-auto-animate>
+          <h2 data-id="code-title">Multicall</h2>
+          <pre
+            data-id="code-animation"
+          ><code class="hljs javascript" data-trim data-line-numbers="|11|21|27-29"><script type="text/template">
+						/**
+						* @dev Provides a function to batch together multiple calls in a single external call.
+						*
+						* _Available since v4.1._
+						*/
+						abstract contract Multicall {
+							/**
+							* @dev Receives and executes a batch of function calls on this contract.
+							* @custom:oz-upgrades-unsafe-allow-reachable delegatecall
+							*/
+							function multicall(bytes[] calldata data) external virtual returns (bytes[] memory results) {
+								results = new bytes[](data.length);
+								for (uint256 i = 0; i < data.length; i++) {
+									results[i] = Address.functionDelegateCall(address(this), data[i]);
+								}
+								return results;
+							}
+						}
 
-				// Learn about plugins: https://revealjs.com/plugins/
-				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
-			});
-		</script>
-	</body>
+
+						contract Factory is Multicall, Ownable {
+							/**
+							* @dev Deploys proxy contract
+							* @param _salt random data used to precalculate the contract's address (it should include the admin address)
+							* @param _data Data to send as msg.data to the implementation to initialize the proxied contract
+							*/
+							function deploy(bytes32 _salt, address, bytes memory _data) public returns (address proxy) {
+								...
+							}
+						}
+					</script></code></pre>
+        </section>
+        <section
+          data-background="/images/chart01.png"
+          data-background-size="contain"
+        ></section>
+        <section
+          data-background="/images/chart02.png"
+          data-background-size="contain"
+        ></section>
+        <section
+          data-background="/images/chart03.png"
+          data-background-size="contain"
+        ></section>
+        <section data-auto-animate>
+          <h2 data-id="code-title">On-Chain Metadata</h2>
+          <pre
+            data-id="code-animation"
+          ><code class="hljs solidity" data-trim data-line-numbers="|1|7-9|11-14|25"><script type="text/template">
+			abstract contract Metadata is ContextUpgradeable {
+				bytes32 internal constant _METADATA_SLOT = 0x9a3c842a9729958490542ca0a3494702bfa8f8af3223154749c2948ae2107699;
+				// keccak256(bytes("Metadata.metadata"));
+			
+				event MetadataSet(address indexed operator, bytes _metadata);
+			
+				function metadata() public view returns (bytes memory) {
+					return StorageSlot.getBytesSlot(_METADATA_SLOT).value;
+				}
+			
+				function _setMetadata(bytes memory _metadata) internal {
+					StorageSlot.getBytesSlot(_METADATA_SLOT).value = _metadata;
+					emit MetadataSet(_msgSender(), _metadata);
+				}
+			}
+
+			/**
+			* @author Simon Dosch
+			* @title SecurityToken
+			* @dev Main contract of the micobo Security Token Contract Suite
+			* inspired by and modeled after https://github.com/ConsenSys/UniversalToken
+			* implements IERC1400
+			* inherits ERC1400ERC20
+			*/
+			contract SecurityToken is ERC1400ERC20, OwnableUpgradeable, NativeMetaTransaction, Metadata, Multicall {
+				...
+			}
+						  </script>
+					  </code></pre>
+        </section>
+        <section>
+          <h2>Metadata example (JSON)</h2>
+          <pre>
+				<code class="hljs json">
+					{
+						"name": "Security Token",
+						"description": "Security Token description",
+						"properties": [
+						  {
+							"trait_type": "securityType",
+							"value": "securityType"
+						  },
+						  {
+							"trait_type": "offeringType",
+							"value": "offeringType"
+						  },
+						  {
+							"trait_type": "issuer",
+							"value": "issuer"
+						  },
+						  {
+							"trait_type": "isin",
+							"value": "isin11"
+						  },
+						  {
+							"trait_type": "wkn",
+							"value": "wkn"
+						  },
+						  {
+							"trait_type": "orderNumber",
+							"value": "orderNumber"
+						  },
+						  {
+							"trait_type": "securitizationType",
+							"value": "securitizationType"
+						  },
+						  {
+							"trait_type": "type",
+							"value": "type"
+						  },
+						  {
+							"trait_type": "productName",
+							"value": "productName"
+						  },
+						  {
+							"trait_type": "globalNoteNumber",
+							"value": "globalNoteNumber"
+						  },
+						  {
+							"trait_type": "applicableLaw",
+							"value": "applicableLaw"
+						  },
+						  {
+							"trait_type": "minimumAmount",
+							"value": "2"
+						  },
+						  {
+							"trait_type": "globalNoteLanguage",
+							"value": "globalNoteLanguage"
+						  },
+						  {
+							"trait_type": "quote",
+							"value": "quote"
+						  },
+						  {
+							"trait_type": "underlying",
+							"value": "underlying"
+						  },
+						  {
+							"trait_type": "currency",
+							"value": "currency"
+						  },
+						  {
+							"trait_type": "internalRevenueCode",
+							"value": "internalRevenueCode"
+						  },
+						  {
+							"trait_type": "irsIncome",
+							"value": "irsIncome"
+						  },
+						  {
+							"trait_type": "tefraFrom",
+							"value": "tefraFrom"
+						  },
+						  {
+							"trait_type": "nominalValue",
+							"value": "nominalValue"
+						  },
+						  {
+							"trait_type": "instanceType",
+							"value": "instanceType"
+						  },
+						  {
+							"trait_type": "smartContractAddress",
+							"value": "smartContractAddress"
+						  }
+						]
+					  }
+				</code>
+			</pre>
+        </section>
+
+        <section
+          data-background="/images/chart04.png"
+          data-background-size="contain"
+        ></section>
+
+        <section>
+          <h2>More features...</h2>
+          <ul>
+            <li class="fragment">Migrate from `truffle` to `foundry`.</li>
+            <li class="fragment">Constraint modules expansion.</li>
+            <li class="fragment">Asset Lifecycle constraint module.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+
+    <script src="dist/reveal.js"></script>
+    <script src="plugin/notes/notes.js"></script>
+    <script src="plugin/markdown/markdown.js"></script>
+    <script src="plugin/highlight/highlight.js"></script>
+    <script>
+      // More info about initialization & config:
+      // - https://revealjs.com/initialization/
+      // - https://revealjs.com/config/
+      Reveal.initialize({
+        hash: true,
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [RevealMarkdown, RevealHighlight, RevealNotes],
+      });
+    </script>
+  </body>
 </html>
